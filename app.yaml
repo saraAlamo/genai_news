@@ -1,0 +1,10 @@
+runtime: python39 # O python310, python311, etc. según la versión de Python que uses
+env: standard # Utiliza el entorno estándar de App Engine
+
+entrypoint: gunicorn -b :$PORT app:app # 'app:app' significa 'app.py' y la instancia de Flask llamada 'app'
+
+instance_class: F1 # Clase de instancia pequeña para empezar (low cost, puede escalar)
+
+handlers:
+- url: /.*
+  script: auto

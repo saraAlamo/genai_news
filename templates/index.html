@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Noticias IAG</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; background-color: #f4f4f4; color: #333; }
+        .container { max-width: 1000px; margin: auto; background: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        h1, h2 { color: #0056b3; }
+        label { font-weight: bold; margin-bottom: 5px; display: block; }
+        input[type="text"], textarea, select { width: calc(100% - 22px); padding: 10px; margin-bottom: 10px; border: 1px solid #ddd; border-radius: 4px; }
+        button { background-color: #007bff; color: white; padding: 10px 15px; border: none; border-radius: 4px; cursor: pointer; font-size: 16px; margin-right: 10px; }
+        button:hover { background-color: #0056b3; }
+        .news-section, .transformed-section { border-top: 1px solid #eee; margin-top: 20px; padding-top: 20px; }
+        .news-article { background-color: #e9e9e9; padding: 10px; margin-bottom: 10px; border-radius: 4px; }
+        .transformed-output { background-color: #d1e7dd; padding: 10px; margin-top: 10px; border-radius: 4px; border: 1px solid #a3cfbb; }
+        .error-message { color: red; margin-top: 10px; }
+        #loadingSpinner {
+            display: none; /* Hidden by default */
+            border: 4px solid #f3f3f3; /* Light grey */
+            border-top: 4px solid #3498db; /* Blue */
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            animation: spin 2s linear infinite;
+            margin-left: 10px;
+            vertical-align: middle;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Noticias con IA Generativa</h1>
+
+        <section class="input-section">
+            <label for="newsQuery">Buscar noticias sobre:</label>
+            <input type="text" id="newsQuery" value="inteligencia artificial" placeholder="Ej: política, tecnología, deportes...">
+            <button onclick="getNews()">Buscar Noticias</button>
+            <span id="loadingSpinner"></span>
+            <div id="newsError" class="error-message"></div>
+        </section>
+
+        <hr>
+
+        <section class="news-section">
+            <h2>Noticias Originales</h2>
+            <div id="newsContainer">
+                <p>Las noticias aparecerán aquí después de la búsqueda.</p>
+            </div>
+        </section>
+
+        <hr>
+
+        <section class="transformation-section">
+            <h2>Transformar Noticia Seleccionada</h2>
+            <label for="transformationPrompt">Instrucción para la IA (ej: "reescribe en verso", "resume en 50 palabras", "traduce a inglés"):</label>
+            <input type="text" id="transformationPrompt" value="reescribe esto en verso">
+            <label for="selectedNewsText">Texto de la noticia a transformar:</label>
+            <textarea id="selectedNewsText" rows="10" placeholder="Selecciona una noticia para copiar su texto aquí..."></textarea>
+            <button onclick="transformText()">Transformar con IA</button>
+            <div id="transformationError" class="error-message"></div>
+        </section>
+
+        <section class="transformed-section">
+            <h2>Noticia Transformada</h2>
+            <div id="transformedOutput" class="transformed-output">
+                <p>El texto transformado aparecerá aquí.</p>
+            </div>
+        </section>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // Cargar noticias al inicio
+            getNews();
+        });
+
+        async function getNews() {
+            const query = document.getElementById('newsQuery').value;
+            const newsContainer = document.getElementById('newsContainer');
+            const newsError = document.getElementById('newsError');
+            const loadingSpinner = document.getElementById('loadingSpinner');
+            newsContainer.innerHTML = '<p>Cargando noticias...</p>';
+            newsError.textContent = '';
+            loadingSpinner.style.display = 'inline-block'; // Mostrar spinner
+
+            try {
+                const response = await fetch('/get_news', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ query: query, language: 'es' }) // Puedes añadir un selector de idioma si quieres
+                });
+                const data = await response.json();
+
+                if (data.success) {
+                    newsContainer.innerHTML = ''; // Limpiar el contenedor
+                    if (data.articles.length === 0) {
+                        newsContainer.innerHTML = '<p>No se encontraron noticias.</p>';
+                    } else {
+                        data.articles.forEach(article => {
+                            const articleDiv = document.createElement('div');
+                            articleDiv.className = 'news-article';
+                            articleDiv.innerHTML = `
+                                <h3><a href="${article.url}" target="_blank">${article.title || 'Sin título'}</a></h3>
+                                <p>${article.description || 'Sin descripción'}</p>
+                                <button onclick="selectNews('${encodeURIComponent(article.description || article.title || '')}')">Seleccionar para transformar</button>
+                            `;
+                            newsContainer.appendChild(articleDiv);
+                        });
+                    }
+                } else {
+                    newsError.textContent = `Error: ${data.message}`;
+                    newsContainer.innerHTML = '<p>No se pudieron cargar las noticias.</p>';
+                }
+            } catch (error) {
+                newsError.textContent = `Error de conexión: ${error.message}`;
+                newsContainer.innerHTML = '<p>Hubo un problema al conectar con el servidor.</p>';
+                console.error('Error fetching news:', error);
+            } finally {
+                loadingSpinner.style.display = 'none'; // Ocultar spinner
+            }
+        }
+
+        function selectNews(encodedText) {
+            const decodedText = decodeURIComponent(encodedText);
+            document.getElementById('selectedNewsText').value = decodedText;
+        }
+
+        async function transformText() {
+            const textToTransform = document.getElementById('selectedNewsText').value;
+            const transformationPrompt = document.getElementById('transformationPrompt').value;
+            const transformedOutput = document.getElementById('transformedOutput');
+            const transformationError = document.getElementById('transformationError');
+            transformedOutput.innerHTML = '<p>Transformando texto con IA...</p>';
+            transformationError.textContent = '';
+
+            if (!textToTransform) {
+                transformationError.textContent = 'Por favor, selecciona una noticia o pega texto para transformar.';
+                transformedOutput.innerHTML = '';
+                return;
+            }
+
+            try {
+                const response = await fetch('/transform_text', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        text: textToTransform,
+                        prompt: transformationPrompt
+                    })
+                });
+                const data = await response.json();
+
+                if (data.success) {
+                    transformedOutput.innerHTML = `<pre>${data.transformed_text}</pre>`;
+                } else {
+                    transformationError.textContent = `Error: ${data.message}`;
+                    transformedOutput.innerHTML = '<p>No se pudo transformar el texto.</p>';
+                }
+            } catch (error) {
+                transformationError.textContent = `Error de conexión: ${error.message}`;
+                transformedOutput.innerHTML = '<p>Hubo un problema al conectar con el servidor para la transformación.</p>';
+                console.error('Error transforming text:', error);
+            }
+        }
+    </script>
+</body>
+</html>
