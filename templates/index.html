@@ -1,418 +1,167 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Noticias IAG Personalizadas</title>
-    <style>
-        body { font-family: Arial, sans-serif; margin: 20px; background-color: #f4f4f4; color: #333; }
-        .container { max-width: 1000px; margin: auto; background: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-        h1, h2, h3 { color: #0056b3; }
-        label { font-weight: bold; margin-bottom: 5px; display: block; }
-        input[type="text"], textarea, select { width: calc(100% - 22px); padding: 10px; margin-bottom: 10px; border: 1px solid #ddd; border-radius: 4px; }
-        button { background-color: #007bff; color: white; padding: 10px 15px; border: none; border-radius: 4px; cursor: pointer; font-size: 16px; margin-right: 10px; margin-bottom: 10px;}
-        button:hover { background-color: #0056b3; }
-        .news-section, .transformed-section { border-top: 1px solid #eee; margin-top: 20px; padding-top: 20px; }
-        .news-article { background-color: #e9e9e9; padding: 10px; margin-bottom: 10px; border-radius: 4px; }
-        .transformed-output { background-color: #d1e7dd; padding: 10px; margin-top: 10px; border-radius: 4px; border: 1px solid #a3cfbb; }
-        .error-message { color: red; margin-top: 10px; }
-        #loadingSpinner {
-            display: none;
-            border: 4px solid #f3f3f3;
-            border-top: 4px solid #3498db;
-            border-radius: 50%;
-            width: 20px;
-            height: 20px;
-            animation: spin 2s linear infinite;
-            margin-left: 10px;
-            vertical-align: middle;
-        }
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Tu mundo, a tu manera</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      max-width: 800px;
+      margin: auto;
+      padding: 2em;
+      background: #fdfdfd;
+      color: #222;
+    }
 
-        /* Estilos para los chips */
-        .chip-container {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 8px;
-            margin-bottom: 15px;
-        }
-        .chip {
-            background-color: #e0e0e0;
-            color: #333;
-            padding: 8px 12px;
-            border-radius: 20px;
-            cursor: pointer;
-            border: 1px solid #ccc;
-            font-size: 14px;
-            transition: background-color 0.2s, border-color 0.2s;
-            display: flex;
-            align-items: center;
-        }
-        .chip:hover {
-            background-color: #d0d0d0;
-        }
-        .chip.selected {
-            background-color: #007bff;
-            color: white;
-            border-color: #007bff;
-        }
-        .chip .icon {
-            margin-left: 5px;
-            font-weight: bold;
-        }
-        .chip.selected .icon {
-            content: '✓';
-        }
-        .chip:not(.selected) .icon.check { display: none; }
-        .chip.selected .icon.add { display: none; }
+    h1 {
+      font-size: 1.8em;
+      margin-bottom: 1em;
+    }
 
-        .custom-input-group {
-            display: flex;
-            gap: 5px;
-            margin-top: 10px;
-            margin-bottom: 10px;
-        }
-        .custom-input-group input {
-            flex-grow: 1;
-            margin-bottom: 0;
-        }
-        .custom-input-group button {
-            margin-right: 0;
-            margin-bottom: 0;
-        }
-        /* Estilos para el nuevo botón de búsqueda */
-        .search-button-section {
-            margin-top: 20px;
-            padding-top: 20px;
-            border-top: 1px solid #eee;
-            text-align: center; /* Centrar el botón si lo deseas */
-        }
-    </style>
+    .section {
+      margin-bottom: 2em;
+    }
+
+    h3 {
+      margin-bottom: 0.5em;
+      color: #0056b3;
+      font-size: 1.2em;
+    }
+
+    .tag {
+      display: inline-block;
+      margin: 6px 6px 6px 0;
+      padding: 8px 14px;
+      border-radius: 999px;
+      border: 1px solid #ccc;
+      background-color: #f0f0f0;
+      cursor: pointer;
+      user-select: none;
+      transition: all 0.2s ease;
+      font-size: 0.95em;
+    }
+
+    .tag.active {
+      background-color: #007bff;
+      color: white;
+      border-color: #007bff;
+      font-weight: bold;
+      box-shadow: 0 0 0 2px #007bff33;
+    }
+
+    button {
+      padding: 12px 24px;
+      font-size: 1em;
+      background-color: #007bff;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: bold;
+      letter-spacing: 0.5px;
+    }
+
+    button:hover {
+      background-color: #0056b3;
+    }
+
+    #news-container > div {
+      margin-bottom: 2em;
+      padding-bottom: 1em;
+      border-bottom: 1px solid #ccc;
+    }
+  </style>
+
+  <script defer>
+    let selected = {
+      topics: [],
+      tones: [],
+      formats: [],
+      ideology: []
+    };
+
+    function toggleTag(type, value, el) {
+      if (selected[type].includes(value)) {
+        selected[type] = selected[type].filter(v => v !== value);
+        el.classList.remove('active');
+      } else {
+        selected[type].push(value);
+        el.classList.add('active');
+      }
+    }
+
+    async function fetchNews() {
+      const res = await fetch('/get_news_custom', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ preferences: selected, language: 'es' })
+      });
+      const data = await res.json();
+      renderNews(data.articles);
+    }
+
+    function renderNews(articles) {
+      const container = document.getElementById('news-container');
+      container.innerHTML = '';
+      articles.forEach(a => {
+        const card = document.createElement('div');
+        card.innerHTML = `
+          <h2 style="font-size: 1.2em; font-weight: bold; margin-bottom: 0.3em;">${a.title}</h2>
+          <p style="font-size: 0.9em; color: #666; margin-bottom: 0.5em;"><a href="${a.url}" target="_blank">Ver fuente original</a></p>
+          <p style="margin-top: 0.5em; line-height: 1.4;">${a.transformed_text}</p>
+        `;
+        container.appendChild(card);
+      });
+    }
+
+    function renderTags(list, type, containerId) {
+      const container = document.getElementById(containerId);
+      list.forEach(label => {
+        const tag = document.createElement('span');
+        tag.className = 'tag';
+        tag.innerText = label;
+        tag.onclick = () => toggleTag(type, label, tag);
+        container.appendChild(tag);
+      });
+    }
+
+    window.onload = function () {
+      renderTags(["Tecnología", "Política", "Economía", "Ciencia", "Cultura", "Deportes", "Salud", "Medio Ambiente"], 'topics', 'tags-topics');
+      renderTags(["Neutral", "Liberal", "Conservador", "Nacional", "Internacional"], 'ideology', 'tags-ideology');
+      renderTags(["Objetivo/Realista", "Positivo", "Humorístico", "Sarcástico", "Inspirador"], 'tones', 'tags-tones');
+      renderTags(["En Verso/Rima", "Estilo Chiquito de la Calzada", "Como un Tweet", "Formato Guion de Película"], 'formats', 'tags-formats');
+    };
+  </script>
 </head>
+
 <body>
-    <div class="container">
-        <h1>Noticias con IA Generativa Personalizadas</h1>
+  <h1>¿Cómo quieres que te contemos el mundo hoy?</h1>
 
-        <section class="preferences-section">
-            <h2>Mis Preferencias de Noticias</h2>
+  <div class="section">
+    <h3>Tema:</h3>
+    <div id="tags-topics"></div>
+  </div>
 
-            <h3>Temas de Interés:</h3>
-            <div id="topicChipsContainer" class="chip-container">
-                <button class="chip" data-type="topic" data-value="tecnologia" onclick="toggleChip(this, 'topic')">Tecnología <span class="icon add">+</span><span class="icon check">✓</span></button>
-                <button class="chip" data-type="topic" data-value="politica" onclick="toggleChip(this, 'topic')">Política <span class="icon add">+</span><span class="icon check">✓</span></button>
-                <button class="chip" data-type="topic" data-value="economia" onclick="toggleChip(this, 'topic')">Economía <span class="icon add">+</span><span class="icon check">✓</span></button>
-                <button class="chip" data-type="topic" data-value="ciencia" onclick="toggleChip(this, 'topic')">Ciencia <span class="icon add">+</span><span class="icon check">✓</span></button>
-                <button class="chip" data-type="topic" data-value="cultura" onclick="toggleChip(this, 'topic')">Cultura <span class="icon add">+</span><span class="icon check">✓</span></button>
-                <button class="chip" data-type="topic" data-value="deportes" onclick="toggleChip(this, 'topic')">Deportes <span class="icon add">+</span><span class="icon check">✓</span></button>
-                <button class="chip" data-type="topic" data-value="salud" onclick="toggleChip(this, 'topic')">Salud <span class="icon add">+</span><span class="icon check">✓</span></button>
-                <button class="chip" data-type="topic" data-value="medio ambiente" onclick="toggleChip(this, 'topic')">Medio Ambiente <span class="icon add">+</span><span class="icon check">✓</span></button>
-            </div>
-            <div class="custom-input-group">
-                <input type="text" id="customTopicInput" placeholder="Añadir tema personalizado">
-                <button onclick="addCustomChip('topic')">Añadir</button>
-            </div>
+  <div class="section">
+    <h3>Perspectiva Política:</h3>
+    <div id="tags-ideology"></div>
+  </div>
 
-            <h3 id="politicalPrefTitle" style="display:none;">Perspectiva Política:</h3>
-            <div id="politicalChipsContainer" class="chip-container" style="display:none;">
-                <button class="chip" data-type="political" data-value="neutral" onclick="toggleChip(this, 'political', 'single')">Neutral <span class="icon add">+</span><span class="icon check">✓</span></button>
-                <button class="chip" data-type="political" data-value="liberal" onclick="toggleChip(this, 'political', 'single')">Liberal <span class="icon add">+</span><span class="icon check">✓</span></button>
-                <button class="chip" data-type="political" data-value="conservador" onclick="toggleChip(this, 'political', 'single')">Conservador <span class="icon add">+</span><span class="icon check">✓</span></button>
-                <button class="chip" data-type="political" data-value="nacional" onclick="toggleChip(this, 'political', 'single')">Nacional <span class="icon add">+</span><span class="icon check">✓</span></button>
-                <button class="chip" data-type="political" data-value="internacional" onclick="toggleChip(this, 'political', 'single')">Internacional <span class="icon add">+</span><span class="icon check">✓</span></button>
-            </div>
+  <div class="section">
+    <h3>Tono de la Noticia:</h3>
+    <div id="tags-tones"></div>
+  </div>
 
-            <h3>Tono de la Noticia:</h3>
-            <div id="toneChipsContainer" class="chip-container">
-                <button class="chip" data-type="tone" data-value="objetivo" onclick="toggleChip(this, 'tone', 'single')">Objetivo/Realista <span class="icon add">+</span><span class="icon check">✓</span></button>
-                <button class="chip" data-type="tone" data-value="positivo" onclick="toggleChip(this, 'tone', 'single')">Positivo <span class="icon add">+</span><span class="icon check">✓</span></button>
-                <button class="chip" data-type="tone" data-value="humoristico" onclick="toggleChip(this, 'tone', 'single')">Humorístico <span class="icon add">+</span><span class="icon check">✓</span></button>
-                <button class="chip" data-type="tone" data-value="sarcasticos" onclick="toggleChip(this, 'tone', 'single')">Sarcástico <span class="icon add">+</span><span class="icon check">✓</span></button>
-                <button class="chip" data-type="tone" data-value="inspirador" onclick="toggleChip(this, 'tone', 'single')">Inspirador <span class="icon add">+</span><span class="icon check">✓</span></button>
-            </div>
+  <div class="section">
+    <h3>Formato Especial:</h3>
+    <div id="tags-formats"></div>
+  </div>
 
-            <h3>Formato Especial:</h3>
-            <div id="formatChipsContainer" class="chip-container">
-                <button class="chip" data-type="format" data-value="verso" onclick="toggleChip(this, 'format', 'single')">En Verso/Rima <span class="icon add">+</span><span class="icon check">✓</span></button>
-                <button class="chip" data-type="format" data-value="chiquito" onclick="toggleChip(this, 'format', 'single')">Estilo Chiquito de la Calzada <span class="icon add">+</span><span class="icon check">✓</span></button>
-                <button class="chip" data-type="format" data-value="tweet" onclick="toggleChip(this, 'format', 'single')">Como un Tweet <span class="icon add">+</span><span class="icon check">✓</span></button>
-                <button class="chip" data-type="format" data-value="guion pelicula" onclick="toggleChip(this, 'format', 'single')">Formato Guion de Película <span class="icon add">+</span><span class="icon check">✓</span></button>
-            </div>
+  <div class="section">
+    <button onclick="fetchNews()">Ver noticias</button>
+  </div>
 
-            <div>
-                <input type="checkbox" id="avoidSensationalism"> <label for="avoidSensationalism">Evitar sensacionalismo / noticias amarillistas</label><br><br>
-                <input type="checkbox" id="suggestImage"> <label for="suggestImage">Sugerir prompt de imagen para la noticia transformada</label>
-            </div>
-        </section>
-
-        <hr>
-
-        <section class="search-button-section">
-            <button onclick="getNews()">Buscar Noticias</button>
-            <span id="loadingSpinner"></span>
-            <div id="newsError" class="error-message"></div>
-        </section>
-
-        <hr>
-
-        <section class="news-section">
-            <h2>Noticias Originales</h2>
-            <div id="newsContainer">
-                <p>Las noticias aparecerán aquí después de la búsqueda.</p>
-            </div>
-        </section>
-
-        <hr>
-
-        <section class="transformation-section">
-            <h2>Transformar Noticia Seleccionada</h2>
-            <label for="selectedNewsText">Texto de la noticia a transformar:</label>
-            <textarea id="selectedNewsText" rows="10" placeholder="Selecciona una noticia para copiar su texto aquí..."></textarea>
-            <button onclick="transformText()">Transformar con IA</button>
-            <div id="transformationError" class="error-message"></div>
-        </section>
-
-        <section class="transformed-section">
-            <h2>Noticia Transformada</h2>
-            <div id="transformedOutput" class="transformed-output">
-                <p>El texto transformado aparecerá aquí.</p>
-            </div>
-            <div id="imagePromptOutput" class="transformed-output" style="display: none; margin-top: 15px;">
-                <h3>Sugerencia de Prompt para Imagen:</h3>
-                <p id="imagePromptText"></p>
-            </div>
-        </section>
-    </div>
-
-    <script>
-        // Arrays para almacenar las preferencias seleccionadas
-        let selectedTopics = [];
-        let selectedPoliticals = [];
-        let selectedTones = [];
-        let selectedFormats = [];
-
-        document.addEventListener('DOMContentLoaded', () => {
-            // Cargar noticias al inicio con las preferencias por defecto
-            getNews();
-        });
-
-        // Función para gestionar la selección/deselección de chips
-        function toggleChip(element, type, selectionMode = 'multiple') {
-            const value = element.dataset.value;
-
-            if (selectionMode === 'single') {
-                document.querySelectorAll(`.chip[data-type="${type}"]`).forEach(chip => {
-                    chip.classList.remove('selected');
-                    chip.querySelector('.icon.add').style.display = 'inline';
-                    chip.querySelector('.icon.check').style.display = 'none';
-                });
-                if (type === 'tone') selectedTones = [];
-                if (type === 'format') selectedFormats = [];
-                if (type === 'political') selectedPoliticals = [];
-            }
-
-            element.classList.toggle('selected');
-            const isSelected = element.classList.contains('selected');
-
-            if (isSelected) {
-                element.querySelector('.icon.add').style.display = 'none';
-                element.querySelector('.icon.check').style.display = 'inline';
-            } else {
-                element.querySelector('.icon.add').style.display = 'inline';
-                element.querySelector('.icon.check').style.display = 'none';
-            }
-
-            let targetArray;
-            switch (type) {
-                case 'topic': targetArray = selectedTopics; break;
-                case 'political': targetArray = selectedPoliticals; break;
-                case 'tone': targetArray = selectedTones; break;
-                case 'format': targetArray = selectedFormats; break;
-            }
-
-            const index = targetArray.indexOf(value);
-            if (isSelected) {
-                if (index === -1) {
-                    targetArray.push(value);
-                }
-            } else {
-                if (index > -1) {
-                    targetArray.splice(index, 1);
-                }
-            }
-
-            if (type === 'topic' && value === 'politica') {
-                const politicalContainer = document.getElementById('politicalChipsContainer');
-                const politicalTitle = document.getElementById('politicalPrefTitle');
-                if (selectedTopics.includes('politica')) {
-                    politicalContainer.style.display = 'flex';
-                    politicalTitle.style.display = 'block';
-                } else {
-                    politicalContainer.style.display = 'none';
-                    politicalTitle.style.display = 'none';
-                    document.querySelectorAll('.chip[data-type="political"]').forEach(chip => {
-                        chip.classList.remove('selected');
-                        chip.querySelector('.icon.add').style.display = 'inline';
-                        chip.querySelector('.icon.check').style.display = 'none';
-                    });
-                    selectedPoliticals = [];
-                }
-            }
-
-            console.log(`Selected ${type}s:`, targetArray);
-        }
-
-        function addCustomChip(type) {
-            let inputElement;
-            let containerElement;
-            let targetArray;
-
-            switch (type) {
-                case 'topic':
-                    inputElement = document.getElementById('customTopicInput');
-                    containerElement = document.getElementById('topicChipsContainer');
-                    targetArray = selectedTopics;
-                    break;
-                default: return;
-            }
-
-            const customValue = inputElement.value.trim().toLowerCase();
-            if (customValue && !targetArray.includes(customValue)) {
-                const newChip = document.createElement('button');
-                newChip.className = 'chip selected';
-                newChip.dataset.type = type;
-                newChip.dataset.value = customValue;
-                newChip.onclick = function() { toggleChip(this, type); };
-                newChip.innerHTML = `${customValue} <span class="icon add" style="display: none;">+</span><span class="icon check">✓</span>`;
-                
-                containerElement.appendChild(newChip);
-                targetArray.push(customValue);
-                inputElement.value = '';
-                console.log(`Added custom ${type}:`, targetArray);
-            }
-        }
-
-        function getPreferences() {
-            return {
-                topics: selectedTopics,
-                political_prefs: selectedPoliticals,
-                tones: selectedTones,
-                formats: selectedFormats,
-                avoid_sensationalism: document.getElementById('avoidSensationalism').checked,
-                suggest_image: document.getElementById('suggestImage').checked
-            };
-        }
-
-        async function getNews() {
-            const query = ""; // La query se formará en el backend a partir de las preferencias
-            const newsContainer = document.getElementById('newsContainer');
-            const newsError = document.getElementById('newsError');
-            const loadingSpinner = document.getElementById('loadingSpinner');
-            newsContainer.innerHTML = '<p>Cargando noticias...</p>';
-            newsError.textContent = '';
-            loadingSpinner.style.display = 'inline-block';
-
-            const preferences = getPreferences();
-            console.log("Preferencias enviadas a /get_news:", preferences);
-
-            try {
-                const response = await fetch('/get_news', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({ query: query, language: 'es', preferences: preferences })
-                });
-                const data = await response.json();
-
-                if (data.success) {
-                    newsContainer.innerHTML = '';
-                    if (data.articles.length === 0) {
-                        newsContainer.innerHTML = '<p>No se encontraron noticias con estas preferencias.</p>';
-                    } else {
-                        data.articles.forEach(article => {
-                            const articleDiv = document.createElement('div');
-                            articleDiv.className = 'news-article';
-                            articleDiv.innerHTML = `
-                                <h3><a href="${article.url}" target="_blank">${article.title || 'Sin título'}</a></h3>
-                                <p>${article.description || 'Sin descripción'}</p>
-                                <button onclick="selectNews('${encodeURIComponent(article.description || article.title || '')}')">Seleccionar para transformar</button>
-                            `;
-                            newsContainer.appendChild(articleDiv);
-                        });
-                    }
-                } else {
-                    newsError.textContent = `Error: ${data.message}`;
-                    newsContainer.innerHTML = '<p>No se pudieron cargar las noticias.</p>';
-                }
-            } catch (error) {
-                newsError.textContent = `Error de conexión: ${error.message}`;
-                newsContainer.innerHTML = '<p>Hubo un problema al conectar con el servidor.</p>';
-                console.error('Error fetching news:', error);
-            } finally {
-                loadingSpinner.style.display = 'none';
-            }
-        }
-
-        function selectNews(encodedText) {
-            const decodedText = decodeURIComponent(encodedText);
-            document.getElementById('selectedNewsText').value = decodedText;
-        }
-
-        async function transformText() {
-            const textToTransform = document.getElementById('selectedNewsText').value;
-            const transformedOutput = document.getElementById('transformedOutput');
-            const transformationError = document.getElementById('transformationError');
-            const imagePromptOutputDiv = document.getElementById('imagePromptOutput');
-            const imagePromptTextSpan = document.getElementById('imagePromptText');
-
-            transformedOutput.innerHTML = '<p>Transformando texto con IA...</p>';
-            imagePromptOutputDiv.style.display = 'none';
-            imagePromptTextSpan.textContent = '';
-            transformationError.textContent = '';
-
-            if (!textToTransform) {
-                transformationError.textContent = 'Por favor, selecciona una noticia o pega texto para transformar.';
-                transformedOutput.innerHTML = '';
-                return;
-            }
-
-            const preferences = getPreferences();
-            console.log("Preferencias enviadas a /transform_text:", preferences);
-
-            try {
-                const response = await fetch('/transform_text', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        text: textToTransform,
-                        preferences: preferences
-                    })
-                });
-                const data = await response.json();
-
-                if (data.success) {
-                    transformedOutput.innerHTML = `<pre>${data.transformed_text}</pre>`;
-                    if (data.image_prompt && preferences.suggest_image) {
-                        imagePromptTextSpan.textContent = data.image_prompt;
-                        imagePromptOutputDiv.style.display = 'block';
-                    }
-                } else {
-                    transformationError.textContent = `Error: ${data.message}`;
-                    transformedOutput.innerHTML = '<p>No se pudo transformar el texto.</p>';
-                    imagePromptOutputDiv.style.display = 'none';
-                }
-            } catch (error) {
-                transformationError.textContent = `Error de conexión: ${error.message}`;
-                transformedOutput.innerHTML = '<p>Hubo un problema al conectar con el servidor para la transformación.</p>';
-                imagePromptOutputDiv.style.display = 'none';
-                console.error('Error transforming text:', error);
-            }
-        }
-    </script>
+  <div id="news-container" class="section"></div>
 </body>
 </html>

@@ -2,8 +2,9 @@ import os
 from flask import Flask, render_template, request, jsonify
 import requests
 from dotenv import load_dotenv
-# --- Nuevas importaciones para los modelos generativos de Vertex AI ---
-import vertexai
+from orchestrator import Orchestrator
+
+from vertexai import init as vertex_init
 from vertexai.preview.generative_models import GenerativeModel
 
 # Option 1: Access GenerativeModel via preview.models
@@ -20,13 +21,17 @@ load_dotenv()
 # --- Configuración de la API de Noticias ---
 NEWS_API_KEY = os.getenv('NEWS_API_KEY')
 NEWS_API_URL = "https://newsapi.org/v2/everything"
+print("GOOGLE_APPLICATION_CREDENTIALS =", os.environ.get("GOOGLE_APPLICATION_CREDENTIALS"))
 
 # --- Configuración de Vertex AI (IA Generativa) ---
 PROJECT_ID = os.getenv('GCP_PROJECT_ID')
 REGION = os.getenv('GCP_REGION')
+vertex_init(project=PROJECT_ID, location=REGION)
 
-vertexai.init(project=PROJECT_ID, location=REGION) # <-- ¡Aquí el cambio!
-GENERATIVE_MODEL = GenerativeModel("gemini-pro") # <-- ¡Aquí también!
+GENERATIVE_MODEL = GenerativeModel("gemini-2.5-flash")
+
+ORCHESTRATOR = Orchestrator(NEWS_API_KEY, GENERATIVE_MODEL)
+
 # --- Rutas de la Aplicación ---
 
 @app.route('/')
@@ -123,6 +128,43 @@ def transform_text():
         "image_prompt": image_prompt
     })
 
+from orchestrator import Orchestrator                 # NUEVO
+
+# Instancia global
+ORCHESTRATOR = Orchestrator(NEWS_API_KEY, GENERATIVE_MODEL)
+
+@app.route("/process_request", methods=["POST"])
+def process_request():
+    data = request.json
+    preferences = data.get("preferences", {})
+    language = data.get("language", "es")
+
+    try:
+        final_articles = ORCHESTRATOR.run(preferences, language)
+        return jsonify({"success": True, "articles": final_articles})
+    except Exception as e:
+        print("ERROR orchestrator:", e)
+        return jsonify({"success": False, "message": str(e)}), 500
+@app.route('/get_news_custom', methods=['POST'])
+def get_news_custom():
+    data = request.json
+    prefs = data.get('preferences', {})
+    lang = data.get('language', 'es')
+
+    # 1. Buscar noticias crudas
+    raw_articles = ORCHESTRATOR.retriever.fetch(prefs, lang)
+
+    # 2. Transformarlas según preferencias
+    result = []
+    for article in raw_articles[:5]:  # limitamos a 5 para evitar timeout
+        transformed, _ = ORCHESTRATOR.transformer.transform(article, prefs)
+        result.append({
+            "title": article.get("title", "Sin título"),
+            "url": article.get("url", ""),
+            "transformed_text": transformed
+        })
+
+    return jsonify({ "articles": result })
 
 if __name__ == '__main__':
     # Usar el puerto 8080 si está disponible, de lo contrario Flask elegirá otro
