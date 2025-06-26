@@ -38,78 +38,93 @@ def index():
 
 @app.route('/get_news', methods=['POST'])
 def get_news():
-    """
-    Ruta para obtener noticias de la API pública.
-    """
     data = request.json
-    query = data.get('query', 'inteligencia artificial') # Término de búsqueda por defecto
-    language = data.get('language', 'es') # Idioma por defecto
-
-    params = {
-        'q': query,
-        'apiKey': NEWS_API_KEY,
-        'language': language,
-        'sortBy': 'relevancy'
-    }
+    language = data.get('language', 'es')
+    preferences = data.get('preferences', {})
+    
+    # EXTRAER LOS TEMAS DE INTERÉS DE LAS PREFERENCIAS
+    topics = preferences.get('topics', [])
+    
+    # CONSTRUIR LA CONSULTA (Q) PARA NEWSAPI
+    # Si hay temas seleccionados, unirlos con OR
+    if topics:
+        query_api = " OR ".join(topics)
+    else:
+        # Si no hay temas seleccionados, usar un tema por defecto (ej. "noticias generales" o "actualidad")
+        # Esto es crucial para evitar el error 400 si no se selecciona ningún chip
+        query_api = "noticias generales" 
+        
+    # Puedes añadir lógica para incorporar otras preferencias en la query si NewsAPI lo soporta
+    # Por ejemplo, si tuvieras una preferencia de país y NewsAPI lo permitiera:
+    # country = preferences.get('country', 'us') # Asumiendo que NewsAPI puede filtrar por país
+    
+    news_api_url = f"https://newsapi.org/v2/everything?q={query_api}&apiKey={NEWS_API_KEY}&language={language}&sortBy=relevancy"
+    
+    print(f"DEBUG: Llamando a NewsAPI con URL: {news_api_url}") # Para depuración
     
     try:
-        response = requests.get(NEWS_API_URL, params=params)
-        response.raise_for_status() # Lanza una excepción para errores HTTP
+        response = requests.get(news_api_url)
+        response.raise_for_status() # Lanza una excepción para errores HTTP (4xx o 5xx)
         news_data = response.json()
+        
         articles = news_data.get('articles', [])
+        # Filtrar artículos que no tienen título o descripción
+        filtered_articles = [
+            a for a in articles 
+            if a.get('title') and a.get('description') and a.get('url')
+        ]
         
-        # Filtramos solo los campos relevantes para simplificar
-        simplified_articles = []
-        for article in articles:
-            simplified_articles.append({
-                'title': article.get('title'),
-                'description': article.get('description'),
-                'url': article.get('url')
-            })
-        
-        return jsonify({'success': True, 'articles': simplified_articles})
+        return jsonify({"success": True, "articles": filtered_articles})
     except requests.exceptions.RequestException as e:
-        return jsonify({'success': False, 'message': f"Error al obtener noticias: {e}"}), 500
+        print(f"Error al obtener noticias de NewsAPI: {e}")
+        return jsonify({"success": False, "message": f"Error al obtener noticias: {e}"}), 400
     except Exception as e:
-        return jsonify({'success': False, 'message': f"Error inesperado: {e}"}), 500
+        print(f"Error inesperado en get_news: {e}")
+        return jsonify({"success": False, "message": f"Error interno del servidor: {e}"}), 500
 
 
+# La función transform_text (o process_request en el futuro) también necesitará acceder a 'preferences'
 @app.route('/transform_text', methods=['POST'])
 def transform_text():
-    """
-    Ruta para transformar texto usando el modelo de IA generativa de Vertex AI.
-    """
     data = request.json
     text_to_transform = data.get('text')
-    transformation_prompt = data.get('prompt', 'Reescribe este texto de forma más creativa.')
+    preferences = data.get('preferences', {}) # Asegúrate de obtener las preferencias aquí también
 
     if not text_to_transform:
-        return jsonify({'success': False, 'message': 'No se proporcionó texto para transformar.'}), 400
+        return jsonify({"success": False, "message": "No se proporcionó texto para transformar."}), 400
 
-    try:
-        # Aquí es donde se le da la instrucción al modelo de IA
-        # El 'prompt' incluye la instrucción y el texto a transformar
-        prompt_content = f"{transformation_prompt}\n\nTexto:\n{text_to_transform}"
-        
-        # Generar contenido usando el modelo
-        # Ajusta generation_config según tus necesidades (temperatura, etc.)
-        response = GENERATIVE_MODEL.generate_content(
-            prompt_content,
-            generation_config={"temperature": 0.7, "max_output_tokens": 1024}
-        )
-        
-        # La respuesta puede venir en bloques, los unimos
-        transformed_text = "".join([part.text for part in response.candidates[0].content.parts])
-        
-        return jsonify({'success': True, 'transformed_text': transformed_text})
+    # Aquí es donde integrarás tu lógica de LLM/Gemini para la transformación
+    # y el uso de las 'preferences' para guiar la generación.
+    # Por ahora, un ejemplo simple:
+    
+    # Construir un prompt básico usando las preferencias (EJEMPLO)
+    prompt_parts = [f"Transforma la siguiente noticia: '{text_to_transform}'"]
+    
+    if preferences.get('tones'):
+        prompt_parts.append(f"El tono debe ser: {', '.join(preferences['tones'])}.")
+    if preferences.get('formats'):
+        prompt_parts.append(f"El formato deseado es: {', '.join(preferences['formats'])}.")
+    if preferences.get('avoid_sensationalism'):
+        prompt_parts.append("Evita cualquier sensacionalismo o lenguaje amarillista.")
+    
+    final_prompt = " ".join(prompt_parts) + "\n\nNoticia:" # Combina las partes del prompt
+    
+    # Simula una transformación con un modelo (AQUÍ ES DONDE LLAMARÁS A GEMINI)
+    # Por ahora, solo como placeholder:
+    transformed_text = f"DEBUG: Texto original: '{text_to_transform}'\nDEBUG: Prompt generado: '{final_prompt}'\n\n[Esta es la noticia transformada con las preferencias.]"
+    
+    image_prompt = ""
+    if preferences.get('suggest_image'):
+        image_prompt = "DEBUG: [Prompt sugerido para la imagen basado en la noticia transformada y las preferencias.]" # Lógica para generar el prompt de imagen
 
-    except Exception as e:
-        # Manejo de errores de la API de Vertex AI (cuotas, errores del modelo, etc.)
-        print(f"Error al transformar texto con IAG: {e}")
-        return jsonify({'success': False, 'message': f"Error al transformar texto: {e}"}), 500
+    return jsonify({
+        "success": True,
+        "transformed_text": transformed_text,
+        "image_prompt": image_prompt
+    })
 
-# --- Ejecutar la aplicación ---
+
 if __name__ == '__main__':
-    # Esto es solo para pruebas locales. En App Engine, Gunicorn ejecutará la aplicación.
-    app.run(debug=True, host='0.0.0.0', port=int(os.environ.get('PORT', 8080)))
+    # Usar el puerto 8080 si está disponible, de lo contrario Flask elegirá otro
+    app.run(host='0.0.0.0', port=os.environ.get('PORT', 8080), debug=True)
 
